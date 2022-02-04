@@ -7,14 +7,7 @@
 #    http://shiny.rstudio.com/
 #
 
-library(shiny)
-library(ggplot2)
-library(dplyr)
-library(cowplot)
-library(shinythemes)
-library(shinydashboard)
-library(tidytext)
-library(data.table)
+pacman::p_load(shiny, ggplot2, dplyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
 
 ## Create user interface variable
 ui = dashboardPage(
