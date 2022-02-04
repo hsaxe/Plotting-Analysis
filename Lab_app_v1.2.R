@@ -43,7 +43,7 @@ ui = dashboardPage(
                             selectInput('feat', 'What do you want to plot?', choices = NULL), width = 12),
                         
                         box(
-                            selectizeInput('filter', '', choices = NULL, multiple = T), width = 20),
+                            selectizeInput('filter', 'Which variable (gene, protein, metabolite, counts, etc.)', choices = NULL, multiple = T), width = 20),
                         
                         box(
                             selectInput('x', 'Select plot x-axis:', choices = NULL),
