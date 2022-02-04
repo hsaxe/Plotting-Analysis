@@ -33,7 +33,7 @@ ui = dashboardPage(
                     inputPanel(
                         
                         box(
-                            fileInput('Data', 'Choose CSV file in plotting format',
+                            fileInput('Data', 'Choose CSV file in plotting format (GeneID, ProteinID, metabolite, samples, etc. must all be in their own column',
                                       accept = 'text/csv'),
                             
                             selectInput('PlotType', 'Select plot type:', c('Boxplot', 'Barplot')),
