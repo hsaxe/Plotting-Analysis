@@ -9,6 +9,8 @@
 
 pacman::p_load(shiny, ggplot2, dplyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
 
+options(shiny.maxRequestSize=500*1024^2)
+
 ## Create user interface variable
 ui = dashboardPage(
     
