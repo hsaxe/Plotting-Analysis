@@ -7,7 +7,7 @@
 #    http://shiny.rstudio.com/
 #
 
-pacman::p_load(shiny, ggplot2, dplyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
+pacman::p_load(shiny, ggplot2, dplyr, tidyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
 
 options(shiny.maxRequestSize=500*1024^2)
 
@@ -36,6 +36,9 @@ ui = dashboardPage(
                         
                         box(
                             fileInput('Data', 'Choose CSV file in plotting format (GeneID, ProteinID, metabolite, samples, expression level, etc. must all be in their own column)',
+                                      accept = 'text/csv'),
+                            
+                            fileInput('metadata', 'Choose metadata file',
                                       accept = 'text/csv'),
                             
                             selectInput('PlotType', 'Select plot type:', c('Boxplot', 'Barplot')),
@@ -101,9 +104,16 @@ server <- function(input, output, session) {
         
         fread(input$Data$datapath) 
     })
+    
+    metadata <- reactive({
+        
+        req(input$metadata)
+        
+        fread(input$metadata$datapath) 
+    })
     ## Each of these 'observe' functions with 'updateselect(ize)Input' is required to make input options based on previous user input. As you may notice, they are matched to ui inputs.
     observe({
-        updateSelectInput(session, 'feat', 'What category do you want to plot?', choices = names(dataset()))
+        updateSelectInput(session, 'feat', 'Select ID name (GeneID, ProteinID, Metabolite, etc.)', choices = names(dataset()))
     })
     
     observe({
@@ -144,7 +154,21 @@ server <- function(input, output, session) {
     ## Define plotting variable in server to be displayed in ui based on inputs
     plotInput = reactive({
         ## Filtering the data based on user inputs
-        dat = dataset() %>% filter(get(input$feat) %in% input$filter)
+        if(is.null(metadata())) {
+            
+            dat = dat %>% 
+                filter(get(input$feat) %in% input$filter) %>% 
+                pivot_longer(!GeneID, names_to = 'Samples') %>% 
+                mutate(Group = gsub('..$', '', Samples))
+            
+        } else {
+            
+            dat = dat %>% 
+                filter(get(input$feat) %in% input$filter) %>% 
+                pivot_longer(!GeneID, names_to = 'Samples') %>% 
+                mutate(Group = gsub('..$', '', Samples))
+        }
+        
         
         if(input$xsub != 'None') {
             dat = dat %>% filter(get(input$x) %in% input$xsub)
