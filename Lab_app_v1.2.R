@@ -7,7 +7,16 @@
 #    http://shiny.rstudio.com/
 #
 
-pacman::p_load(shiny, ggplot2, dplyr, tidyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
+# pacman::p_load(shiny, ggplot2, dplyr, tidyr, cowplot, shinythemes, shinydashboard, tidytext, data.table)
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(cowplot)
+library(shinythemes)
+library(shinydashboard)
+library(tidytext)
+library(data.table)
 
 options(shiny.maxRequestSize=500*1024^2)
 
@@ -29,70 +38,84 @@ ui = dashboardPage(
             # First tab content
             tabItem(tabName = "P",
                     # Application title
-                    titlePanel("Dandekar Lab Data Visualization"),
+                    titlePanel("Dandekar Lab Data Visualization")
+                    )
+        ),
                     
                     # Sidebar with select inputs for plotting. Most of these have a reactive component on the server side that updates based on user input.
-                    inputPanel(
+                    fluidRow(
                         
                         box(
                             fileInput('Data', 'Choose CSV file in plotting format (GeneID, ProteinID, metabolite, samples, etc. must all be in their own column)',
-                                      accept = 'text/csv'),
-                            
+                                      accept = c('text/csv', '.txt', '.csv')),
+                            width = 3),
+                        
+                        box(    
                             selectInput('metaquestion', 'Do you have metadata?', c('No', 'Yes')),
                             
                             fileInput('metadata', 'Choose metadata file',
-                                      accept = 'text/csv'), width = 20),
+                                      accept = 'text/csv'), 
+                            width = 3),
                         
                         box(
                             selectInput('PlotType', 'Select plot type:', c('Boxplot', 'Barplot')),
-                            selectInput('feat', 'What do you want to plot?', choices = NULL), width = 12),
+                            selectInput('feat', 'What do you want to plot?', choices = NULL), 
+                            width = 3),
                         
                         box(
-                            selectizeInput('filter', 'Which variable (gene, protein, metabolite, counts, etc.)', choices = NULL, multiple = T), width = 20),
+                            selectizeInput('filter', 'Which variable (gene, protein, metabolite, counts, etc.)', choices = NULL, multiple = T), width = 3)
+                        
+                        ),
+        
+                    fluidRow(
                         
                         box(
                             selectInput('x', 'Select plot x-axis:', choices = NULL),
                             
                             selectizeInput('xsub', 'Subset x-axis (optional):', choices = NULL),
                             
-                            width = 12),
+                            width = 3),
                         
                         box(
                             selectInput('y', 'Select plot y-axis:', choices = NULL),
 
                             selectizeInput('ysub', 'Subset y-axis (optional):', choices = NULL),
 
-                            width = 12),
+                            width = 3),
                         
                         box(
                             selectInput('facet', 'Facet by:', choices = NULL),
                             
                             selectizeInput('fill', 'Fill by:', choices = NULL),
-                            width = 12),
+                            width = 3),
 
                         box(
                             selectInput('datsub', 'Subset Dataset (optional):', choices = NULL),
 
                             selectizeInput('datsubfeat', 'Which feature(s)?', choices = NULL, multiple = T),
 
-                            width = 20)
+                            width = 3)
                         
-                    )
-                    ,
-
-                    mainPanel(
-                        plotOutput('Bplot')),
-
-                    downloadButton("downloadData", "Download This Plot"),
-
-                    box(
-                        numericInput('SaveWidth', 'Change size of saved plot', value = 8, width = '100px'),
-                        width = 1)
+                        ),
                     
+                    fluidRow(
+                        
+                        box(
+                        plotOutput('Bplot', width = 'auto'),
+                        width = 8),
+                        
+                        box(
+                            downloadButton("downloadData", "Download This Plot"),
+                            width = 3),
+                        
+                        box(
+                            numericInput('SaveWidth', 'Change size of saved plot', value = 8, width = '100px'),
+                            width = 3)
+                        
+                    ),
+        
             )
-        )
     )
-)
 
 
 
