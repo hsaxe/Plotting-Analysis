@@ -46,8 +46,21 @@ ui = dashboardPage(
                     fluidRow(
                         
                         box(
+                            h3('Formatting Guidelines:'),
+                        width = 2
+                        ),
+                        
+                        tags$image(src = 'Slide1.jpg', height = 400)
+                    ),
+        
+                    br(),
+        
+                    fluidRow(
+                        
+                        box(
                             fileInput('Data', 'Choose CSV file in plotting format (GeneID, ProteinID, metabolite, samples, etc. must all be in their own column)',
                                       accept = c('text/csv', '.txt', '.csv')),
+                            selectInput('IDcol', 'Select your ID column', choices = NULL),
                             width = 3),
                         
                         box(    
@@ -57,13 +70,23 @@ ui = dashboardPage(
                                       accept = 'text/csv'), 
                             width = 3),
                         
-                        box(
-                            selectInput('PlotType', 'Select plot type:', c('Boxplot', 'Barplot')),
-                            selectInput('feat', 'What do you want to plot?', choices = NULL), 
+                        box(    
+                            selectInput('annoquestion', 'Do you have an annotation?', c('No', 'Yes')),
+                            
+                            fileInput('annotation', 'Choose annotation file',
+                                      accept = 'text/csv'),
                             width = 3),
                         
                         box(
-                            selectizeInput('filter', 'Which variable (gene, protein, metabolite, counts, etc.)', choices = NULL, multiple = T), width = 3)
+                            selectInput('PlotType', 'Select plot type:', c('Boxplot', 'Barplot')),
+                            
+                            selectInput('feat', 'What do you want to plot?', 
+                                        choices = NULL), 
+                            
+                            selectizeInput('filter', 'Which variable (gene, protein, metabolite, counts, etc.)',
+                                           choices = NULL, multiple = T),
+                            
+                            width = 3)
                         
                         ),
         
@@ -97,20 +120,22 @@ ui = dashboardPage(
                             width = 3)
                         
                         ),
+        
+                    fluidRow(
+                        
+                            downloadButton("downloadData", "Download This Plot"),
+                        
+                        box(
+                            numericInput('SaveWidth', 'Change size of saved plot', value = 8, width = '100px'),
+                            width = 2)
+                        
+                    ),
                     
                     fluidRow(
                         
                         box(
                         plotOutput('Bplot', width = 'auto'),
-                        width = 8),
-                        
-                        box(
-                            downloadButton("downloadData", "Download This Plot"),
-                            width = 3),
-                        
-                        box(
-                            numericInput('SaveWidth', 'Change size of saved plot', value = 8, width = '100px'),
-                            width = 3)
+                        width = 10)
                         
                     ),
         
@@ -131,7 +156,10 @@ server <- function(input, output, session) {
         fread(input$Data$datapath)
     })
     
-   
+    observe({
+        updateSelectInput(session, 'IDcol', 'Select your ID column', 
+                          choices = names(dataset()))
+    })
     
     metadata <- reactive({
 
@@ -140,41 +168,66 @@ server <- function(input, output, session) {
         fread(input$metadata$datapath)
     })
     
+    annotation <- reactive({
+        
+        req(input$annotation)
+        
+        fread(input$annotation$datapath)
+    })
+    
+    dataset01 = reactive({
+        
+        req(c(input$IDcol))
+        
+        if(input$annoquestion == 'Yes') {
+            
+            dataset() %>%  
+            pivot_longer(!.data[[input$IDcol]], names_to = 'Sample') %>%
+            mutate(Group = gsub('..$', '', Sample)) %>% 
+            left_join(annotation())
+            
+        } else {
+            
+            dataset() %>%   
+                pivot_longer(!.data[[input$IDcol]], names_to = 'Sample') %>%
+                mutate(Group = gsub('..$', '', Sample))
+            
+        }
+    })
+    
+    dataset02 = reactive({
+        
+        req(c(input$Data, input$metadata))
+        
+        if(input$metaquestion == 'Yes') {
+            
+            dataset01() %>% 
+                left_join(metadata())
+        } else {
+            
+            dataset01()
+        }
+        
+        
+    })
+    
     ## Each of these 'observe' functions with 'updateselect(ize)Input' is required to make input options based on previous user input. As you may notice, they are matched to ui inputs.
     observe({
-        updateSelectInput(session, 'feat', 'Select ID name (GeneID, ProteinID, Metabolite, etc.)', choices = names(dataset()))
+        updateSelectInput(session, 'feat', 'What do you want to plot?', 
+                          choices = names(dataset02()))
     })
     
     observe({
-        updateSelectizeInput(session, 'filter', 'Which feature(s)? If multiple, you should facet by variable selected above.', choices = unique(dataset()[[input$feat]]), server = T)
+        updateSelectizeInput(session, 'filter', 'Which feature(s)? If multiple, you should facet by variable selected above.', choices = unique(dataset02()[[input$feat]]), server = T)
     })
     
     ## Filtering the data based on user inputs
-            dataset02 = reactive({
-                
-                req(c(input$feat, input$filter))
-                
-                dataset() %>% 
-                    filter(.data[[input$feat]] %in% input$filter) %>%  
-                    pivot_longer(!.data[[input$feat]], names_to = 'Sample') %>%
-                    mutate(Group = gsub('..$', '', Sample))
-                
-            })
-                
-                dataset2 = reactive({
+           dataset2 = reactive({
                     
-                    req(c(input$Data, input$metadata))
+                    req(c(input$feat, input$filter))
                     
-                    if(input$metaquestion == 'Yes') {
-                        
-                        dataset02() %>% 
-                            left_join(metadata())
-                        
-                    } else {
-                        
-                        dataset02()
-                    }
-                    
+                    dataset02() %>% 
+                        filter(.data[[input$feat]] %in% input$filter) 
                     
                 })
 
@@ -182,35 +235,35 @@ server <- function(input, output, session) {
     ## Each of these 'observe' functions with 'updateselect(ize)Input' is required to make input options based on previous user input. As you may notice, they are matched to ui inputs.    
     
     observe({
-        updateSelectizeInput(session, 'x', 'Select plot x-axis:', choices = names(dataset2()), server = T)
+        updateSelectizeInput(session, 'x', 'Select plot x-axis:', choices = names(dataset02()), server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'xsub', 'Subset x-axis (optional):', choices = c('None', unique(dataset2()[[input$x]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'xsub', 'Subset x-axis (optional):', choices = c('None', unique(dataset02()[[input$x]])), selected = 'None', server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'y', 'Select plot y-axis:', choices = names(dataset2()), server = T)
+        updateSelectizeInput(session, 'y', 'Select plot y-axis:', choices = names(dataset02()), server = T)
     })
 
     observe({
-        updateSelectizeInput(session, 'ysub', 'Subset y-axis (optional):', choices = c('None', unique(dataset2()[[input$y]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'ysub', 'Subset y-axis (optional):', choices = c('None', unique(dataset02()[[input$y]])), selected = 'None', server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'facet', 'Facet by:', choices = c('None', names(dataset2())), selected = 'None', server = T)
+        updateSelectizeInput(session, 'facet', 'Facet by:', choices = c('None', names(dataset02())), selected = 'None', server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'fill', 'Fill by:', choices = c(names(dataset2())), server = T)
+        updateSelectizeInput(session, 'fill', 'Fill by:', choices = c(names(dataset02())), server = T)
     })
 
     observe({
-        updateSelectizeInput(session, 'datsub', 'Subset Dataset (optional):', choices = c('None', names(dataset2())), selected = 'None', server = T)
+        updateSelectizeInput(session, 'datsub', 'Subset Dataset (optional):', choices = c('None', names(dataset02())), selected = 'None', server = T)
     })
 
     observe({
-        updateSelectizeInput(session, 'datsubfeat', 'Which feature(s)?', choices = c('None', unique(dataset2()[[input$datsub]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'datsubfeat', 'Which feature(s)?', choices = c('None', unique(dataset02()[[input$datsub]])), selected = 'None', server = T)
         
     })
     
