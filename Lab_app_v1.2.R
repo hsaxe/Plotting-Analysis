@@ -17,6 +17,7 @@ library(shinythemes)
 library(shinydashboard)
 library(tidytext)
 library(data.table)
+library(DT)
 
 options(shiny.maxRequestSize=500*1024^2)
 
@@ -28,53 +29,112 @@ ui = dashboardPage(
     ## Sidebar content
     dashboardSidebar(
         sidebarMenu(
-            menuItem("Plotting", tabName = "P", icon = icon('bar-chart-o'))
+            menuItem('Data manipulator', tabName = 'DM'),
+            menuItem("Boxplot/Barplot", tabName = "P", icon = icon('bar-chart-o'))
         )
     ),
     
     ## Body content
     dashboardBody(
         tabItems(
+            
+            tabItem('DM',
+                    titlePanel('Use this to manipulate your data if needed'),
+                    
+                    fluidRow(
+                        
+                        box(
+                            fileInput('rawData', 'Choose CSV file to manipulate',
+                                      accept = c('text/csv', '.txt', '.csv')),
+                            
+                            downloadButton("downloadData", "Download Modified Data"),
+                            
+                            width = 3),
+                        
+                        box(
+                            selectInput('remCol', 'Choose column(s) to remove', choices = NULL, multiple = T),
+                            
+                            selectInput( 'remRow', 'Choose row(s) to remove', choices = NULL, multiple = T),
+                            
+                            actionButton('remAction', 'Remove'),
+                            width = 3),
+                        
+                        box(
+                            selectInput('nameCol', 'Choose row to set as column names', choices = NULL, multiple = F),
+                            
+                            actionButton('nameAction', 'Rename'),
+                            width = 3),
+                        
+                        box(
+                            selectInput('oldName', 'Select column to rename', choices = NULL, multiple = F),
+                            
+                            textInput('newName', 'Type new name'),
+                            
+                            actionButton('newNameAction', 'Rename'),
+                            width = 3)
+                    ),
+                    
+                    br(),
+                    
+                    fluidRow(
+                        
+                            DT::DTOutput('rawTable')
+                        
+                    )
+                    
+                    ),
             # First tab content
             tabItem(tabName = "P",
                     # Application title
-                    titlePanel("Dandekar Lab Data Visualization")
-                    )
-        ),
+                    titlePanel("Boxplot/Barplot"),
                     
                     # Sidebar with select inputs for plotting. Most of these have a reactive component on the server side that updates based on user input.
                     fluidRow(
                         
                         box(
                             h3('Formatting Guidelines:'),
-                        width = 2
+                            width = 2
                         ),
                         
-                        tags$image(src = 'Slide1.jpg', height = 400)
+                        tags$image(src = 'Slide1.JPG', height = 400)
                     ),
-        
+                    
                     br(),
-        
+                    
+                    fluidRow(
+                        
+                        DT::DTOutput('plotData')
+                        
+                    ),
+                    
+                    br(),
+                    
                     fluidRow(
                         
                         box(
-                            fileInput('Data', 'Choose CSV file in plotting format (GeneID, ProteinID, metabolite, samples, etc. must all be in their own column)',
+                            fileInput('Data', 'Choose CSV file in plotting format (Guidelines Above). Your data is displayed above.',
                                       accept = c('text/csv', '.txt', '.csv')),
                             selectInput('IDcol', 'Select your ID column', choices = NULL),
                             width = 3),
                         
-                        box(    
-                            selectInput('metaquestion', 'Do you have metadata?', c('No', 'Yes')),
+                        box(
+                            fileInput('annotation', 'Choose annotation file. Numeric IDs are required for joining with plotting data.',
+                                      accept = 'text/csv'),
                             
-                            fileInput('metadata', 'Choose metadata file',
-                                      accept = 'text/csv'), 
+                            selectInput('AnnoID', 'Select ID column matching that of your data', choices = NULL),
+                            
+                            actionButton('annoquestion', 'Join with data'),
+                            
                             width = 3),
                         
-                        box(    
-                            selectInput('annoquestion', 'Do you have an annotation?', c('No', 'Yes')),
+                        box(
+                            fileInput('metadata', 'Choose metadata file',
+                                      accept = 'text/csv'), 
                             
-                            fileInput('annotation', 'Choose annotation file',
-                                      accept = 'text/csv'),
+                            selectInput('Sampcol', 'Select your Sample column name', choices = NULL),
+                            
+                            actionButton('metaquestion', 'Join with data'),
+                            
                             width = 3),
                         
                         box(
@@ -88,8 +148,8 @@ ui = dashboardPage(
                             
                             width = 3)
                         
-                        ),
-        
+                    ),
+                    
                     fluidRow(
                         
                         box(
@@ -101,9 +161,9 @@ ui = dashboardPage(
                         
                         box(
                             selectInput('y', 'Select plot y-axis:', choices = NULL),
-
+                            
                             selectizeInput('ysub', 'Subset y-axis (optional):', choices = NULL),
-
+                            
                             width = 3),
                         
                         box(
@@ -111,19 +171,21 @@ ui = dashboardPage(
                             
                             selectizeInput('fill', 'Fill by:', choices = NULL),
                             width = 3),
-
+                        
                         box(
                             selectInput('datsub', 'Subset Dataset (optional):', choices = NULL),
-
+                            
                             selectizeInput('datsubfeat', 'Which feature(s)?', choices = NULL, multiple = T),
-
+                            
                             width = 3)
                         
-                        ),
-        
+                    ),
+                    
                     fluidRow(
                         
-                            downloadButton("downloadData", "Download This Plot"),
+                        downloadButton("downloadPlot", "Download This Plot"),
+                        
+                        downloadButton("downloadPlotData", "Download Plotting Data"),
                         
                         box(
                             numericInput('SaveWidth', 'Change size of saved plot', value = 8, width = '100px'),
@@ -134,13 +196,15 @@ ui = dashboardPage(
                     fluidRow(
                         
                         box(
-                        plotOutput('Bplot', width = 'auto'),
-                        width = 10)
+                            plotOutput('Bplot', width = 'auto'),
+                            width = 10)
                         
-                    ),
-        
+                    )
             )
+        ),
+        
     )
+)
 
 
 
@@ -148,12 +212,117 @@ ui = dashboardPage(
 # Define server logic 
 server <- function(input, output, session) {
     
+    rawData = reactive({
+        
+        req(input$rawData)
+        
+         fread(input$rawData$datapath) %>% 
+             mutate(across(everything(), ~replace(., . == '', 'NA')))
+        
+    })
+    
+    # df = rawData()
+    
+    modData = reactiveValues()
+
+    observe({
+
+        modData$x = rawData()
+        
+    })
+
+
+    output$rawTable = DT::renderDT({
+
+        datatable(modData$x, selection = list(target = 'column'))
+    })
+
+    observe({
+        updateSelectInput(session, 'remCol', 'Choose column(s) to remove',
+                          choices = c(names(modData$x)))
+    })
+    
+    
+    observe({
+        updateSelectInput(session, 'remRow', 'Choose row(s) to remove',
+                          choices = c(rownames(modData$x)))
+    })
+    
+    observe({
+        updateSelectInput(session, 'nameCol', 'Choose row to set as column names', 
+                          choices = c(rownames(modData$x)))
+        
+    })
+    
+    observe({
+        updateSelectInput(session, 'oldName', 'Select column to rename', 
+                          choices = c(names(modData$x)))
+        
+    })
+    
+    observeEvent(input$remAction, {
+        
+        req(c(input$remCol, input$remRow))
+        
+        modData$x = modData$x %>% 
+            select(!all_of(input$remCol)) %>% 
+            filter(!row_number() %in% input$remRow)
+    })
+    
+    observeEvent(input$nameAction, {
+        
+        req(c(input$nameCol))
+        
+        names = modData$x %>% 
+            slice(as.numeric(input$nameCol)) %>% 
+            unlist(., use.names = F) %>% 
+            make.unique()
+        
+        modData$x = modData$x %>% 
+            filter(!row_number() %in% as.numeric(input$nameCol))
+        
+        names(modData$x) = names
+    })
+    
+    observeEvent(input$newNameAction, {
+        
+        req(c(input$newName, input$oldName))
+        
+        modData$x = modData$x %>% 
+            rename_with(~gsub(input$oldName, input$newName, .x))
+
+    })
+    
+    output$downloadData <- downloadHandler(
+        filename = function() { paste(input$rawData, '_modified.csv', sep='') },
+        content = function(file) {
+            fwrite(modData$x, file)
+        }
+    )
+    
     ## This defines the dataset to be worked on in the server based on user selection
-    dataset <- reactive({
-
+    
+    
+    
+    dataset = reactive({
+        
         req(input$Data)
-
+        
         fread(input$Data$datapath)
+    })
+    
+    datasetMod = reactiveValues()
+    
+    observe({
+        
+        datasetMod$x = dataset()
+        
+    })
+    
+    
+    output$plotData = DT::renderDT({
+        
+        datatable(datasetMod$x, selection = list(target = 'column'))
     })
     
     observe({
@@ -161,109 +330,121 @@ server <- function(input, output, session) {
                           choices = names(dataset()))
     })
     
+    observeEvent(input$IDcol, {
+        
+        req(input$IDcol)
+        
+        datasetMod$x = datasetMod$x %>%   
+            pivot_longer(!.data[[input$IDcol]], names_to = 'Sample', values_to = 'Expression Level') %>%
+            mutate(Group = gsub('..$', '', Sample), ID_Column = as.numeric(.data[[input$IDcol]])) %>% 
+            select(!.data[[input$IDcol]]) %>% 
+            rename_with(~ gsub('ID_Column', input$IDcol, .x)) %>% 
+            relocate(.data[[input$IDcol]])
+    })
+    
     metadata <- reactive({
-
+        
         req(input$metadata)
-
+        
         fread(input$metadata$datapath)
+    })
+    
+    observe({
+        updateSelectInput(session, 'Sampcol', 'Select your Sample column name', 
+                          choices = names(metadata()))
     })
     
     annotation <- reactive({
         
-        req(input$annotation)
+        req(input$annotation, input$IDcol)
         
-        fread(input$annotation$datapath)
+        fread(input$annotation$datapath) 
+            
     })
     
-    dataset01 = reactive({
-        
-        req(c(input$IDcol))
-        
-        if(input$annoquestion == 'Yes') {
-            
-            dataset() %>%  
-            pivot_longer(!.data[[input$IDcol]], names_to = 'Sample') %>%
-            mutate(Group = gsub('..$', '', Sample)) %>% 
-            left_join(annotation())
-            
-        } else {
-            
-            dataset() %>%   
-                pivot_longer(!.data[[input$IDcol]], names_to = 'Sample') %>%
-                mutate(Group = gsub('..$', '', Sample))
-            
-        }
+    observe({
+        updateSelectInput(session, 'AnnoID', 'Select ID column matching that of your data', 
+                          choices = names(annotation()))
     })
     
-    dataset02 = reactive({
+    
+    observeEvent(input$metaquestion, {
         
-        req(c(input$Data, input$metadata))
-        
-        if(input$metaquestion == 'Yes') {
+        req(c(input$metaquestion, input$Sampcol))
             
-            dataset01() %>% 
-                left_join(metadata())
-        } else {
+        datasetMod$x = datasetMod$x %>%  
+                left_join(metadata(), by = input$Sampcol)
             
-            dataset01()
-        }
+    })
+    
+    observeEvent(input$annoquestion, {
         
+        req(c(input$annoquestion))
+        
+        anno = annotation() %>% 
+            mutate(ID_Column = as.numeric(.data[[input$AnnoID]])) %>% 
+            select(!.data[[input$AnnoID]]) %>% 
+            rename_with(~ gsub('ID_Column', input$IDcol, .x))%>% 
+            relocate(.data[[input$AnnoID]])
+        
+        datasetMod$x = datasetMod$x %>%  
+            left_join(anno)
         
     })
     
     ## Each of these 'observe' functions with 'updateselect(ize)Input' is required to make input options based on previous user input. As you may notice, they are matched to ui inputs.
     observe({
         updateSelectInput(session, 'feat', 'What do you want to plot?', 
-                          choices = names(dataset02()))
+                          choices = names(datasetMod$x))
     })
     
     observe({
-        updateSelectizeInput(session, 'filter', 'Which feature(s)? If multiple, you should facet by variable selected above.', choices = unique(dataset02()[[input$feat]]), server = T)
+        updateSelectizeInput(session, 'filter', 'Which feature(s)? If multiple, you should facet by variable selected above.', choices = unique(datasetMod$x[[input$feat]]), server = T)
     })
     
     ## Filtering the data based on user inputs
-           dataset2 = reactive({
-                    
-                    req(c(input$feat, input$filter))
-                    
-                    dataset02() %>% 
-                        filter(.data[[input$feat]] %in% input$filter) 
-                    
-                })
-
+    dataset2 = reactive({
         
+        req(c(input$feat, input$filter))
+        
+        datasetMod$x %>% 
+            filter(.data[[input$feat]] %in% input$filter) 
+        
+    })
+    
+    
     ## Each of these 'observe' functions with 'updateselect(ize)Input' is required to make input options based on previous user input. As you may notice, they are matched to ui inputs.    
     
     observe({
-        updateSelectizeInput(session, 'x', 'Select plot x-axis:', choices = names(dataset02()), server = T)
+        updateSelectizeInput(session, 'x', 'Select plot x-axis:', choices = names(datasetMod$x), server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'xsub', 'Subset x-axis (optional):', choices = c('None', unique(dataset02()[[input$x]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'xsub', 'Subset x-axis (optional):', choices = c('None', unique(datasetMod$x[[input$x]])), selected = 'None', server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'y', 'Select plot y-axis:', choices = names(dataset02()), server = T)
-    })
-
-    observe({
-        updateSelectizeInput(session, 'ysub', 'Subset y-axis (optional):', choices = c('None', unique(dataset02()[[input$y]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'y', 'Select plot y-axis:', choices = names(datasetMod$x), server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'facet', 'Facet by:', choices = c('None', names(dataset02())), selected = 'None', server = T)
+        updateSelectizeInput(session, 'ysub', 'Subset y-axis (optional):', choices = c('None', unique(datasetMod$x[[input$y]])), selected = 'None', server = T)
     })
     
     observe({
-        updateSelectizeInput(session, 'fill', 'Fill by:', choices = c(names(dataset02())), server = T)
+        updateSelectizeInput(session, 'facet', 'Facet by:', choices = c('None', names(datasetMod$x)), selected = 'None', server = T)
     })
-
+    
     observe({
-        updateSelectizeInput(session, 'datsub', 'Subset Dataset (optional):', choices = c('None', names(dataset02())), selected = 'None', server = T)
+        updateSelectizeInput(session, 'fill', 'Fill by:', choices = c(names(datasetMod$x)), server = T)
     })
-
+    
     observe({
-        updateSelectizeInput(session, 'datsubfeat', 'Which feature(s)?', choices = c('None', unique(dataset02()[[input$datsub]])), selected = 'None', server = T)
+        updateSelectizeInput(session, 'datsub', 'Subset Dataset (optional):', choices = c('None', names(datasetMod$x)), selected = 'None', server = T)
+    })
+    
+    observe({
+        updateSelectizeInput(session, 'datsubfeat', 'Which feature(s)?', choices = c('None', unique(datasetMod$x[[input$datsub]])), selected = 'None', server = T)
         
     })
     
@@ -276,7 +457,7 @@ server <- function(input, output, session) {
             filter(.data[[input$datsub]] %in% input$datsubfeat)
         
     })
-
+    
     
     ## Define plotting variable in server to be displayed in ui based on inputs
     plotInput = reactive({
@@ -284,23 +465,12 @@ server <- function(input, output, session) {
         if(input$datsub != 'None') {
             
             dat = dataset3()
-        
+            
         } else {
             
             dat = dataset2()
         }
-
-        # if(input$xsub != 'None') {
-        #     dat = dat %>% filter(.data[[input$x]] %in% input$xsub)
-        # }
-        # 
-        # if(input$ysub != 'None') {
-        #     dat = dat %>% filter(.data[[input$y]] %in% input$ysub)
-        # }
-        # 
-        # if(input$datsub != 'None') {
-        #     dat = dat %>% filter(.data[[input$datsub]] %in% input$datsubfeat)
-        # }
+        
         ## Conditional statement for input boxplot
         if(input$PlotType == 'Boxplot') {
             if(input$facet == 'None') {
@@ -312,11 +482,11 @@ server <- function(input, output, session) {
                     guides(fill = guide_legend(title = input$fill))+
                     ggtitle(input$filter)+
                     labs(x = input$x, y = input$y)
-
+                
             } else {
-
+                
                 p = ggplot(dat, aes(reorder_within(.data[[input$x]], .data[[input$y]], .data[[input$facet]]),
-                                         .data[[input$y]], fill = .data[[input$fill]]))+
+                                    .data[[input$y]], fill = .data[[input$fill]]))+
                     geom_boxplot()+
                     scale_x_reordered()+
                     theme(text = element_text(size = 20), axis.text.x = element_text(angle = 30, vjust = 0.5))+
@@ -324,7 +494,7 @@ server <- function(input, output, session) {
                     labs(x = input$x, y = input$y)+
                     facet_wrap(~.data[[input$facet]], scales = "free", ncol = 2)
             }
-
+            
         } else {
             ## conditional input for input barplot
             if(input$PlotType == 'Barplot') {
@@ -336,9 +506,9 @@ server <- function(input, output, session) {
                         theme(text = element_text(size = 20), axis.text.x = element_text(angle = 30, vjust = 0.5))+
                         guides(fill = guide_legend(title = input$fill))+
                         labs(x = input$x, y = input$y)
-
+                    
                 } else {
-
+                    
                     p = ggplot(dat, aes(reorder_within(.data[[input$x]], .data[[input$y]], .data[[input$facet]]),
                                         .data[[input$y]], fill = .data[[input$fill]]))+
                         geom_bar(stat = 'identity')+
@@ -348,22 +518,29 @@ server <- function(input, output, session) {
                         labs(x = input$x, y = input$y)+
                         facet_wrap(~.data[[input$facet]], scales = "free_x")
                 }
-
+                
             }
-
+            
         }
-
-
+        
+        
     })
     ## This is required to set the plot to a variable of 'output'
     output$Bplot <- renderPlot({
         print(plotInput())
     })
     ## This creates a button to downnload the current plot
-    output$downloadData <- downloadHandler(
+    output$downloadPlot <- downloadHandler(
         filename = function() { paste(gsub('[[:punct:]]', '_', input$filter), '.png', sep='_') },
         content = function(file) {
             save_plot(file, plotInput(), base_height = input$SaveWidth)
+        }
+    )
+    
+    output$downloadPlotData <- downloadHandler(
+        filename = function() { paste(input$Data, '_joined_with_metadata_or_annotation.csv', sep='') },
+        content = function(file) {
+            fwrite(datasetMod$x, file)
         }
     )
     

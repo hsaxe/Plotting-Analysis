@@ -5,9 +5,10 @@ account: hjsaxe
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 5723945
-bundleId: 5612798
+bundleId: 5711075
 url: https://hjsaxe.shinyapps.io/Plotting-Analysis/
-when: 1645687997.11434
-lastSyncTime: 1645687997.11434
+when: 1647907857.13898
+lastSyncTime: 1647907857.13898
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: www/Slide1.pptx
